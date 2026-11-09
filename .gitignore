@@ -1,0 +1,83 @@
+__pycache__/
+*.pyc
+.env
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+node_modules/
+.next/
+out/
+.local/
+tsconfig.tsbuildinfo
+.node-runtime/
+
+# --- added before the first push ---
+
+# Secrets. `.env` above matches any directory, so backend/.env is covered, but
+# it does NOT match a differently-named file: frontend/.env.local was tracked
+# by the old rules. The `.example` files stay in the repo on purpose -- they
+# are the documentation of which variables must be set, with no values.
+.env.local
+.env.*.local
+*.env
+
+# A full PostgreSQL 18 installation and a uv package cache live in the working
+# tree. Neither is source, both are hundreds of megabytes, and GitHub rejects
+# individual files over 100MB.
+.tools/
+.uv-cache/
+
+# Editor state.
+.idea/
+
+# Runtime output. run_local.log is 1.5MB of application logging; it holds no
+# API key today (checked), but a log is exactly the file that starts holding
+# one after an unlucky exception, so it does not belong in version control.
+run_local.log
+*.log
+
+# Working scratch, none of it source:
+#   _to_delete/        tarballs and snapshots kept for recovery
+#   .codex_audit_tmp/  rendered PNGs of the exported workbooks
+#   Claude outputs/    copies of files that already exist under backend/
+#   _pgfix/            one-off database repair scratch
+#   fe4.tgz            a frontend snapshot
+_to_delete/
+.codex_audit_tmp/
+Claude outputs/
+_pgfix/
+fe4.tgz
+*.tgz
+
+# Company and client material: the TTS document pack, its QA renders and the
+# distribution zip. Excluded deliberately rather than by oversight -- it is
+# 15MB of documents rather than code, and a tender's contents are confidential
+# to the customer even in a private repository. The local copy is untouched.
+company_document_pack/
+
+# Exported matrices carry requirement and evidence text from live bids.
+*.xlsx
+!docs/**/*.xlsx
+
+# --- added for the rfp_best upload ---
+
+# Customer tenders and everything built from them (ADX, Jadwa): confidential to the customer even in
+# a private repository. The review folder keeps only the two scripts that are source.
+review/*
+!review/verify_audit_package.py
+!review/run_full_checks.py
+jadwa_rfp.pdf
+exports/
+
+# Rotated logs (`*.log` does not match run_local.log.1), archives, scratch folders.
+run_local.log*
+*.zip
+_pending/
+
+# Stray empty files created by shell mishaps.
+/cd
+/No
+/The
+.git_old/

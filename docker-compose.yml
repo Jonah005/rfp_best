@@ -1,0 +1,94 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: bidready
+      POSTGRES_USER: bidready
+      POSTGRES_PASSWORD: bidready
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/scripts/init_db.sql:/docker-entrypoint-initdb.d/10_init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bidready -d bidready"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [miniodata:/data]
+    healthcheck:
+      # MinIO's own documented probe; `mc` ships inside the server image.
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  api:
+    build: ./backend
+    env_file: ./backend/.env
+    environment:
+      BIDREADY_DATABASE_URL: postgresql+psycopg://bidready_app:bidready@postgres:5432/bidready
+      # Alembic connects as the owner: the app role has no CREATE on schema
+      # public, which is the point of it.
+      BIDREADY_MIGRATION_DATABASE_URL: postgresql+psycopg://bidready:bidready@postgres:5432/bidready
+      BIDREADY_REDIS_URL: redis://redis:6379/0
+      BIDREADY_STORAGE_ENDPOINT_URL: http://minio:9000
+      BIDREADY_CORS_ORIGINS: http://localhost:3000
+    ports: ["8000:8000"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      minio: {condition: service_healthy}
+    command: sh -c "alembic upgrade head && python -m app.db.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  worker:
+    build: ./backend
+    env_file: ./backend/.env
+    environment:
+      BIDREADY_DATABASE_URL: postgresql+psycopg://bidready_app:bidready@postgres:5432/bidready
+      BIDREADY_REDIS_URL: redis://redis:6379/0
+      BIDREADY_STORAGE_ENDPOINT_URL: http://minio:9000
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    command: celery -A app.workers.celery_app.celery_app worker -l info
+
+  beat:
+    build: ./backend
+    env_file: ./backend/.env
+    environment:
+      BIDREADY_DATABASE_URL: postgresql+psycopg://bidready_app:bidready@postgres:5432/bidready
+      BIDREADY_REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis: {condition: service_healthy}
+    command: celery -A app.workers.celery_app.celery_app beat -l info
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+    ports: ["3000:3000"]
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  miniodata:

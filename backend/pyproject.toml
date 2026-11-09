@@ -1,0 +1,90 @@
+[project]
+name = "bidready-backend"
+version = "0.1.0"
+description = "BidReady - governed AI-assisted Bid/RFP Operating System"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "pydantic[email]>=2.7",
+  "pydantic-settings>=2.3",
+  "sqlalchemy>=2.0.30",
+  "alembic>=1.13",
+  "psycopg[binary]>=3.1",
+  "pgvector>=0.2.5",
+  "bcrypt>=4.1",
+  "pyjwt>=2.8",
+  "python-multipart>=0.0.9",
+  "celery>=5.4",
+  "redis>=5.0",
+  "boto3>=1.34",
+  "httpx>=0.27",
+  "structlog>=24.1",
+  "python-docx>=1.1",
+  "openpyxl>=3.1",
+  "pdfplumber>=0.11",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2",
+  "pytest-asyncio>=0.23",
+  "httpx2>=2.12",
+  "ruff>=0.5",
+  "mypy>=1.10",
+  "fakeredis>=2.20",
+  # Builds the text-PDF fixture in tests/unit/test_ocr.py. Declared so that test runs
+  # everywhere instead of skipping where the package happens to be missing.
+  "reportlab>=4.0",
+  # Runs a throwaway PostgreSQL for the session. Without it every integration
+  # test -- tenant isolation, the approval gates, release validation -- is
+  # skipped, and the summary line still reads green. It was never declared
+  # here, so it happened to be present in CI and absent on a developer's
+  # machine: 1123 passed there, 838 passed and 285 skipped here.
+  # POSIX only. On Windows it starts, then dies cleaning up its own temp
+  # directory ("NotADirectoryError: ...\\bidready-pg-xxxx\\log"), taking the
+  # session with it. Windows developers point BIDREADY_TEST_DATABASE_URL at a
+  # separate database on a real server instead -- see tests/conftest.py.
+  "pgserver>=0.1; sys_platform != 'win32'",
+]
+embeddings = ["sentence-transformers>=3.0"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+# S101: assert is how pytest works.
+# B008: `= Depends(...)` in a signature default is the FastAPI idiom, not a bug.
+ignore = ["S101", "B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# Test fixtures and the development seed contain deliberate, non-secret
+# credentials; flagging them adds noise without adding safety.
+"tests/**" = ["S105", "S106", "S608"]
+"app/db/seed.py" = ["S105"]
+"app/core/security.py" = ["S105"]
+# Migrations build DDL from module constants (table and role names), never
+# from user input; the rule cannot distinguish the two.
+"alembic/**" = ["S608"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+  "integration: requires a live PostgreSQL database",
+  "bare_tasks: the test needs the task service to refuse a task that answers no requirement",
+]
+# Skipping is reported loudly by tests/conftest.py: 285 integration tests once
+# vanished into an `s` in a progress bar while the summary line still read green.
+
+[tool.mypy]
+python_version = "3.10"
+plugins = []
+ignore_missing_imports = true
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["alembic*", "tests*"]
